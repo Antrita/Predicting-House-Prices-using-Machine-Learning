@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 import os
 import urllib.request
+import requests
 
 # Page configuration
 st.set_page_config(
@@ -12,15 +13,41 @@ st.set_page_config(
     layout="wide"
 )
 
-# Google Drive file IDs
-MODEL_FILE_ID = "1EOwg2YhKFkmqjCLwh649K1zdaAJ0o1jm" 
-SCALER_FILE_ID = "1Tsh8rx9BhXaL3-dDYqao5JC9hqACx4Gp"
+# Extract file IDs from Google Drive URLs
+# From: https://drive.google.com/file/d/1EOwg2YhKFkmqjCLwh649K1zdaAJ0o1jm/view?usp=sharing
+# Extract: 1EOwg2YhKFkmqjCLwh649K1zdaAJ0o1jm
+MODEL_FILE_ID = "1EOwg2YhKFkmqjCLwh649K1zdaAJ0o1jm"  # Your model file ID
+SCALER_FILE_ID = "1Tsh8rx9BhXaL3-dDYqao5JC9hqACx4Gp"  # Your scaler file ID
 
 @st.cache_resource
-def download_from_gdrive(file_id, destination):
-    """Download file from Google Drive"""
-    URL = f"https://drive.google.com/uc?export=download&id={file_id}"
-    urllib.request.urlretrieve(URL, destination)
+def download_file_from_google_drive(file_id, destination):
+    """Download file from Google Drive using requests"""
+    URL = "https://docs.google.com/uc?export=download"
+
+    session = requests.Session()
+    response = session.get(URL, params={'id': file_id}, stream=True)
+    token = get_confirm_token(response)
+
+    if token:
+        params = {'id': file_id, 'confirm': token}
+        response = session.get(URL, params=params, stream=True)
+
+    save_response_content(response, destination)
+
+def get_confirm_token(response):
+    """Get confirmation token for large files"""
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            return value
+    return None
+
+def save_response_content(response, destination):
+    """Save response content to file"""
+    CHUNK_SIZE = 32768
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(CHUNK_SIZE):
+            if chunk:
+                f.write(chunk)
 
 # Load model and scaler
 @st.cache_resource
@@ -29,18 +56,24 @@ def load_model():
         # Check if models exist locally, if not download from Google Drive
         if not os.path.exists('best_rf_model.pkl'):
             with st.spinner('Downloading model from Google Drive...'):
-                download_from_gdrive(MODEL_FILE_ID, 'best_rf_model.pkl')
+                download_file_from_google_drive(MODEL_FILE_ID, 'best_rf_model.pkl')
+                st.success("Model downloaded successfully!")
         
         if not os.path.exists('scaler.pkl'):
             with st.spinner('Downloading scaler from Google Drive...'):
-                download_from_gdrive(SCALER_FILE_ID, 'scaler.pkl')
+                download_file_from_google_drive(SCALER_FILE_ID, 'scaler.pkl')
+                st.success("Scaler downloaded successfully!")
         
         # Load the models
-        model = joblib.load('best_rf_model.pkl')
-        scaler = joblib.load('scaler.pkl')
+        with st.spinner('Loading models...'):
+            model = joblib.load('best_rf_model.pkl')
+            scaler = joblib.load('scaler.pkl')
+            st.success("Models loaded successfully!")
+        
         return model, scaler
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
+        st.info("Please ensure the Google Drive file IDs are correct and the files are publicly accessible.")
         return None, None
 
 # Title and description
@@ -49,6 +82,17 @@ st.markdown("""
 This app predicts housing prices in California using a Random Forest model trained on the California Housing dataset.
 The model considers various features like median income, house age, location, and more to estimate the median house value.
 """)
+
+# Initialize model loading
+if 'model_loaded' not in st.session_state:
+    st.session_state.model_loaded = False
+
+if not st.session_state.model_loaded:
+    model, scaler = load_model()
+    if model is not None and scaler is not None:
+        st.session_state.model = model
+        st.session_state.scaler = scaler
+        st.session_state.model_loaded = True
 
 # Sidebar for input features
 st.sidebar.header("Input House Features")
@@ -78,48 +122,50 @@ with col2:
 
 # Predict button
 if st.sidebar.button("Predict Price", type="primary"):
-    try:
-        # Load model and scaler
-        model, scaler = load_model()
-        
-        if model is None:
-            st.stop()
-        
-        # Create input dataframe
-        input_data = pd.DataFrame({
-            'MedInc': [MedInc],
-            'HouseAge': [HouseAge],
-            'AveRooms': [AveRooms],
-            'AveBedrms': [AveBedrms],
-            'Population': [Population],
-            'AveOccup': [AveOccup],
-            'Latitude': [Latitude],
-            'Longitude': [Longitude]
-        })
-        
-        # Make prediction
-        prediction = model.predict(input_data)[0]
-        
-        # Display results
-        st.success("Prediction Complete!")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("Predicted House Value", f"${prediction*100000:,.2f}")
-        
-        with col2:
-            st.metric("Price Range", f"${(prediction-0.5)*100000:,.2f} - ${(prediction+0.5)*100000:,.2f}")
-        
-        with col3:
-            st.metric("Model Confidence", "80.62%")
-        
-        # Display input summary
-        st.subheader("Input Summary")
-        st.dataframe(input_data)
-        
-    except Exception as e:
-        st.error(f"Error making prediction: {str(e)}")
+    if not st.session_state.model_loaded:
+        st.error("Model not loaded yet. Please wait or refresh the page.")
+    else:
+        try:
+            # Get model and scaler from session state
+            model = st.session_state.model
+            scaler = st.session_state.scaler
+            
+            # Create input dataframe
+            input_data = pd.DataFrame({
+                'MedInc': [MedInc],
+                'HouseAge': [HouseAge],
+                'AveRooms': [AveRooms],
+                'AveBedrms': [AveBedrms],
+                'Population': [Population],
+                'AveOccup': [AveOccup],
+                'Latitude': [Latitude],
+                'Longitude': [Longitude]
+            })
+            
+            # Make prediction
+            prediction = model.predict(input_data)[0]
+            
+            # Display results
+            st.success("Prediction Complete!")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Predicted House Value", f"${prediction*100000:,.2f}")
+            
+            with col2:
+                st.metric("Price Range", f"${(prediction-0.5)*100000:,.2f} - ${(prediction+0.5)*100000:,.2f}")
+            
+            with col3:
+                st.metric("Model Confidence", "80.62%")
+            
+            # Display input summary
+            st.subheader("Input Summary")
+            st.dataframe(input_data)
+            
+        except Exception as e:
+            st.error(f"Error making prediction: {str(e)}")
+            st.info("Try refreshing the page if the error persists.")
 
 # Model information section
 with st.expander("Model Information"):
@@ -157,4 +203,11 @@ with st.expander("Feature Descriptions"):
 
 # Footer
 st.markdown("---")
-st.markdown("Built using Streamlit and Scikit-learn")
+st.markdown("Built with Streamlit and Scikit-learn")
+
+# Debug info (hidden by default)
+with st.expander("Debug Information", expanded=False):
+    st.write("Model loaded:", st.session_state.model_loaded if 'model_loaded' in st.session_state else False)
+    st.write("Files exist locally:")
+    st.write("- best_rf_model.pkl:", os.path.exists('best_rf_model.pkl'))
+    st.write("- scaler.pkl:", os.path.exists('scaler.pkl'))
