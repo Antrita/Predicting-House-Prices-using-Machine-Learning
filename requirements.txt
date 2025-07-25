@@ -1,7 +1,6 @@
-# Core dependencies only
+
 streamlit
-pandas<2.0
-numpy<1.25
+pandas
+numpy
 scikit-learn
 joblib
-urllib3<2.0
