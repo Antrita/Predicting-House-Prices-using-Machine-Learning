@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
+import urllib.request
 
 # Page configuration
 st.set_page_config(
@@ -11,15 +12,35 @@ st.set_page_config(
     layout="wide"
 )
 
+# Google Drive file IDs
+MODEL_FILE_ID = "YOUR_MODEL_FILE_ID_HERE"  # Replace with your file ID
+SCALER_FILE_ID = "YOUR_SCALER_FILE_ID_HERE"  # Replace with your file ID
+
+@st.cache_resource
+def download_from_gdrive(file_id, destination):
+    """Download file from Google Drive"""
+    URL = f"https://drive.google.com/uc?export=download&id={file_id}"
+    urllib.request.urlretrieve(URL, destination)
+
 # Load model and scaler
 @st.cache_resource
 def load_model():
     try:
+        # Check if models exist locally, if not download from Google Drive
+        if not os.path.exists('best_rf_model.pkl'):
+            with st.spinner('Downloading model from Google Drive...'):
+                download_from_gdrive(MODEL_FILE_ID, 'best_rf_model.pkl')
+        
+        if not os.path.exists('scaler.pkl'):
+            with st.spinner('Downloading scaler from Google Drive...'):
+                download_from_gdrive(SCALER_FILE_ID, 'scaler.pkl')
+        
+        # Load the models
         model = joblib.load('best_rf_model.pkl')
         scaler = joblib.load('scaler.pkl')
         return model, scaler
-    except:
-        st.error("Model files not found! Please ensure best_rf_model.pkl and scaler.pkl are in the repository.")
+    except Exception as e:
+        st.error(f"Error loading model: {str(e)}")
         return None, None
 
 # Title and description
@@ -28,11 +49,6 @@ st.markdown("""
 This app predicts housing prices in California using a Random Forest model trained on the California Housing dataset.
 The model considers various features like median income, house age, location, and more to estimate the median house value.
 """)
-
-# Check if model exists
-if not os.path.exists('best_rf_model.pkl'):
-    st.error("⚠️ Model not found! Please ensure the model files are uploaded to the GitHub repository.")
-    st.stop()
 
 # Sidebar for input features
 st.sidebar.header("Input House Features")
@@ -141,4 +157,4 @@ with st.expander("Feature Descriptions"):
 
 # Footer
 st.markdown("---")
-st.markdown("Built with ❤️ using Streamlit and Scikit-learn")
+st.markdown("Built using Streamlit and Scikit-learn")
