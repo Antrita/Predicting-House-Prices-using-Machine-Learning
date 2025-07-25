@@ -13,8 +13,8 @@ st.set_page_config(
 )
 
 # Google Drive file IDs
-MODEL_FILE_ID = "YOUR_MODEL_FILE_ID_HERE"  # Replace with your file ID
-SCALER_FILE_ID = "YOUR_SCALER_FILE_ID_HERE"  # Replace with your file ID
+MODEL_FILE_ID = "https://drive.google.com/file/d/1EOwg2YhKFkmqjCLwh649K1zdaAJ0o1jm/view?usp=sharing"  # Replace with your file ID
+SCALER_FILE_ID = "https://drive.google.com/file/d/1Tsh8rx9BhXaL3-dDYqao5JC9hqACx4Gp/view?usp=sharing"  # Replace with your file ID
 
 @st.cache_resource
 def download_from_gdrive(file_id, destination):
