@@ -45,7 +45,7 @@ streamlit run app.py
 | Random Forest (Tuned) | $32,681 | 0.2540 | 0.8062 |
 
 ## Streamlit App Screenshot
-![Streamlit App Interface](screenshot.png)
+![Streamlit App Interface](Streamlit_UI.png)
 
 ## 5. Instructions for Google Colab
 
