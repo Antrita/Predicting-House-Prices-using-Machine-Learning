@@ -3,8 +3,16 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
-import urllib.request
 import requests
+import subprocess
+import sys
+
+# import gdown, install if not available
+try:
+    import gdown
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
+    import gdown
 
 # Page configuration
 st.set_page_config(
@@ -13,26 +21,50 @@ st.set_page_config(
     layout="wide"
 )
 
-# Extract file IDs from Google Drive URLs
-# From: https://drive.google.com/file/d/1EOwg2YhKFkmqjCLwh649K1zdaAJ0o1jm/view?usp=sharing
-# Extract: 1EOwg2YhKFkmqjCLwh649K1zdaAJ0o1jm
 MODEL_FILE_ID = "1EOwg2YhKFkmqjCLwh649K1zdaAJ0o1jm"  # Your model file ID
 SCALER_FILE_ID = "1Tsh8rx9BhXaL3-dDYqao5JC9hqACx4Gp"  # Your scaler file ID
 
-@st.cache_resource
 def download_file_from_google_drive(file_id, destination):
-    """Download file from Google Drive using requests"""
-    URL = "https://docs.google.com/uc?export=download"
-
-    session = requests.Session()
-    response = session.get(URL, params={'id': file_id}, stream=True)
-    token = get_confirm_token(response)
-
-    if token:
-        params = {'id': file_id, 'confirm': token}
-        response = session.get(URL, params=params, stream=True)
-
-    save_response_content(response, destination)
+    """Download file from Google Drive using gdown or requests"""
+    try:
+        # Method 1: Try using gdown (more reliable for Google Drive)
+        try:
+            url = f"https://drive.google.com/uc?id={file_id}"
+            gdown.download(url, destination, quiet=False)
+            
+            # Verify download
+            if os.path.exists(destination) and os.path.getsize(destination) > 1000:
+                return True
+        except Exception as e:
+            st.warning(f"gdown method failed: {e}. Trying alternative method...")
+        
+        # Method 2: Direct download with requests
+        URL = f"https://drive.google.com/uc?export=download&id={file_id}&confirm=t"
+        
+        response = requests.get(URL, stream=True, timeout=300)
+        
+        if response.status_code != 200:
+            st.error(f"Failed to download: HTTP {response.status_code}")
+            return False
+            
+        # Save the file
+        with open(destination, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=32768):
+                if chunk:
+                    f.write(chunk)
+        
+        # Verify file
+        if os.path.exists(destination) and os.path.getsize(destination) > 1000:
+            return True
+        else:
+            st.error("Downloaded file is too small or corrupted")
+            if os.path.exists(destination):
+                os.remove(destination)
+            return False
+            
+    except Exception as e:
+        st.error(f"Download error: {str(e)}")
+        return False
 
 def get_confirm_token(response):
     """Get confirmation token for large files"""
@@ -53,37 +85,68 @@ def save_response_content(response, destination):
 @st.cache_resource
 def load_model():
     try:
-        # Check if models exist locally, if not download from Google Drive
-        if not os.path.exists('best_rf_model.pkl'):
-            with st.spinner('Downloading model from Google Drive...'):
-                download_file_from_google_drive(MODEL_FILE_ID, 'best_rf_model.pkl')
-                st.success("Model downloaded successfully!")
+        model = None
+        scaler = None
         
+        # Download model if not exists
+        if not os.path.exists('best_rf_model.pkl'):
+            with st.spinner('Downloading model from Google Drive (this may take a minute)...'):
+                success = download_file_from_google_drive(MODEL_FILE_ID, 'best_rf_model.pkl')
+                if success:
+                    st.success("Model downloaded successfully!")
+                else:
+                    st.error("Failed to download model file")
+                    return None, None
+        
+        # Download scaler if not exists
         if not os.path.exists('scaler.pkl'):
             with st.spinner('Downloading scaler from Google Drive...'):
-                download_file_from_google_drive(SCALER_FILE_ID, 'scaler.pkl')
-                st.success("Scaler downloaded successfully!")
+                success = download_file_from_google_drive(SCALER_FILE_ID, 'scaler.pkl')
+                if success:
+                    st.success("Scaler downloaded successfully!")
+                else:
+                    st.error("Failed to download scaler file")
+                    return None, None
         
         # Load the models
-        with st.spinner('Loading models...'):
-            model = joblib.load('best_rf_model.pkl')
-            scaler = joblib.load('scaler.pkl')
-            st.success("Models loaded successfully!")
+        try:
+            with st.spinner('Loading Random Forest model...'):
+                model = joblib.load('best_rf_model.pkl')
+                st.success("Model loaded successfully!")
+        except Exception as e:
+            st.error(f"Error loading model file: {str(e)}")
+            # Try removing corrupted file
+            if os.path.exists('best_rf_model.pkl'):
+                os.remove('best_rf_model.pkl')
+                st.info("Removed corrupted model file. Please refresh the page.")
+            return None, None
+            
+        try:
+            with st.spinner('Loading scaler...'):
+                scaler = joblib.load('scaler.pkl')
+                st.success("Scaler loaded successfully!")
+        except Exception as e:
+            st.error(f"Error loading scaler file: {str(e)}")
+            # Try removing corrupted file
+            if os.path.exists('scaler.pkl'):
+                os.remove('scaler.pkl')
+                st.info("Removed corrupted scaler file. Please refresh the page.")
+            return None, None
         
         return model, scaler
+        
     except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
-        st.info("Please ensure the Google Drive file IDs are correct and the files are publicly accessible.")
+        st.error(f"Unexpected error: {str(e)}")
         return None, None
 
-# Title and description
+# Title and desc
 st.title("🏠 California Housing Price Predictor")
 st.markdown("""
 This app predicts housing prices in California using a Random Forest model trained on the California Housing dataset.
 The model considers various features like median income, house age, location, and more to estimate the median house value.
 """)
 
-# Initialize model loading
+# Init model loading
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
 
