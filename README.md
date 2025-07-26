@@ -98,8 +98,21 @@ The Random Forest model identified the following features as most important for 
 - **StandardScaler** applied to features for Linear Regression
 - Random Forest used raw features (no scaling required)
 
-## Streamlit App Screenshot
-![Streamlit App Interface](Streamlit_UI.png)
+## Streamlit App Screenshot and example
+![Streamlit UI - Prediction Example](Streamlit_UI.png)
+
+Given the UI inputs shown:
+- **MedInc**: 3.0 → $30,000 median income
+- **HouseAge**: 10.0 → 10-year-old homes
+- **AveRooms**: 6.0 → 6 rooms average
+- **AveBedrms**: 2.0 → 2 bedrooms average
+- **Population**: 1000 → Medium density
+- **AveOccup**: 5.0 → 5 people per household (higher than typical)
+- **Latitude**: 34.0 → Southern California
+- **Longitude**: -118.0 → Los Angeles area
+
+**Model Output**: $179,758.50 (±$50,000)
+
 
 ## 5. Instructions for Google Colab
 
@@ -117,4 +130,4 @@ To run this in Google Colab:
 ✅ GridSearchCV hyperparameter tuning
 ✅ Model saving with joblib
 ✅ Comprehensive documentation
-✅ Interactive Streamlit UI with metrics display
+✅ Interactive Streamlit UI with metrics displayed
