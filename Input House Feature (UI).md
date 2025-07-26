@@ -2,7 +2,7 @@
 
 ## Model Architecture Overview
 
-The price prediction model uses a **Random Forest Regressor** that has been optimized through GridSearchCV. The model predicts median house values in California based on 8 key features derived from census block group data.
+This price prediction model uses a **Random Forest Regressor** that has been optimized through GridSearchCV. The model predicts median house values in California based on 8 key features derived from census block group data.
 
 ## Input Features - Technical Deep Dive
 
@@ -121,6 +121,8 @@ X_train → StandardScaler → LinearRegression → Predictions
 
 ## Prediction Example
 
+![Streamlit UI - Prediction Example](Streamlit_UI.png)
+
 Given the UI inputs shown:
 - **MedInc**: 3.0 → $30,000 median income
 - **HouseAge**: 10.0 → 10-year-old homes
@@ -145,6 +147,3 @@ Given the UI inputs shown:
 2. **File Size**: ~50-100MB for Random Forest model
 3. **Inference Time**: <100ms per prediction
 4. **Memory Requirements**: ~200MB RAM for model loading
-
-
-
